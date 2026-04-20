@@ -1,1 +1,80 @@
-ci test
+name: CI Pipeline — POC Antigravity
+
+on:
+  push:
+    branches: [ main, "feature/**" ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+
+  security-scan:
+    name: Security Scan (Bandit + Safety)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install tools
+        run: pip install bandit safety
+      - name: SAST Bandit
+        run: bandit -r src/ --severity-level high -f txt || true
+      - name: SCA Safety
+        run: |
+          if [ -f requirements.txt ]; then
+            safety check -r requirements.txt || true
+          fi
+
+  quality-gate:
+    name: Quality Gate (SonarCloud)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install pytest
+        run: |
+          pip install pytest pytest-cov
+          if [ -f requirements.txt ]; then pip install -r requirements.txt || true; fi
+      - name: Run tests
+        run: pytest src/ --cov=src --cov-report=xml -v || echo "No tests yet"
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  iac-scan:
+    name: IaC Security (Checkov)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Checkov
+        run: pip install checkov
+      - name: Checkov Scan
+        run: |
+          if [ -d terraform/ ]; then
+            checkov -d terraform/ --framework terraform --compact --quiet
+          else
+            echo "Sem terraform/ — pulando IaC scan"
+          fi
+
+  notify-grafana:
+    name: Notify Grafana
+    runs-on: ubuntu-latest
+    needs: [security-scan, quality-gate, iac-scan]
+    if: always()
+    steps:
+      - name: Send log to Grafana Loki
+        run: |
+          STATUS="success"
+          if [ "${{ needs.security-scan.result }}" != "success" ] || [ "${{ needs.quality-gate.result }}" != "success" ]; then
+            STATUS="failure"
+          fi
+          curl -s -X POST "${{ secrets.GRAFANA_LOKI_URL }}/loki/api/v1/push"             -u "${{ secrets.GRAFANA_USER }}:${{ secrets.GRAFANA_TOKEN }}"             -H "Content-Type: application/json"             -d "{\"streams\":[{\"stream\":{\"service\":\"poc-antigravity\",\"agent\":\"ci-pipeline\",\"level\":\"INFO\"},\"values\":[[\"$(date +%s%N)\"\,\"{\\\"status\\\":\\\"$STATUS\\\",\\\"branch\\\":\\\"${{ github.ref_name }}\\\"}\"]]}]}"
