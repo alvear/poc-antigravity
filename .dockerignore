@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.env
+.git/
+.github/
+archi_models/
+.antigravity/
+tests/
+.gate_sessions.json
+tmp.json
+*.md
+.venv/
