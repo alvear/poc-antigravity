@@ -9,7 +9,7 @@ on:
 jobs:
 
   unit-tests:
-    name: Unit Tests (pytest + coverage)
+    name: Unit Tests (pytest)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
