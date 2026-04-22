@@ -55,11 +55,14 @@ jobs:
 
       - name: Cloud Build submit
         run: |
-          gcloud builds submit             --tag="${{ steps.meta.outputs.uri }}"             --project="${{ vars.GCP_PROJECT_ID }}"             .
+          gcloud builds submit \
+            --tag="${{ steps.meta.outputs.uri }}" \
+            --project="${{ vars.GCP_PROJECT_ID }}" \
+            --service-account="projects/${{ vars.GCP_PROJECT_ID }}/serviceAccounts/${{ vars.GCP_SERVICE_ACCOUNT }}" \
+            --gcs-source-staging-dir="gs://${{ vars.GCP_PROJECT_ID }}_cloudbuild/source" \
+            --default-buckets-behavior=regional-user-owned-bucket \
+            .
 
-  # =========================================================
-  # STAGE 2 - DEPLOY DEV (automatico)
-  # =========================================================
   deploy-dev:
     name: "[Deploy] DEV"
     needs: bake
