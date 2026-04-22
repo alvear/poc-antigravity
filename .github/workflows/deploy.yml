@@ -158,4 +158,14 @@ jobs:
 
       - name: Notify Grafana - release done
         run: |
-          curl -s -X POST "${{ secrets.GRAFANA_LOKI_URL }}/loki/api/v1/push"             -u "${{ secrets.GRAFANA_USER }}:${{ secrets.GRAFANA_TOKEN }}"             -H "Content-Type: application/json"             -d "{"streams":[{"stream":{"service":"poc-antigravity","agent":"release-agent","level":"INFO"},"values":[["$(date +%s%N)","{\"event\":\"released_to_prd\",\"tag\":\"${{ needs.bake.outputs.image_tag }}\",\"url\":\"${{ steps.deploy.outputs.url }}\"}"]]}]}"
+          NOW_NS=$(date +%s)000000000
+          BODY=$(jq -n \
+            --arg ts "$NOW_NS" \
+            --arg tag "${{ needs.bake.outputs.image_tag }}" \
+            --arg url "${{ steps.deploy.outputs.url }}" \
+            '{streams:[{stream:{service:"poc-antigravity",agent:"release-agent",level:"INFO"},values:[[$ts, ("released_to_prd tag=" + $tag + " url=" + $url)]]}]}')
+          curl -sS -X POST "${{ secrets.GRAFANA_LOKI_URL }}/loki/api/v1/push" \
+            -u "${{ secrets.GRAFANA_USER }}:${{ secrets.GRAFANA_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d "$BODY"
+          echo "Log enviado ao Grafana: released_to_prd"
