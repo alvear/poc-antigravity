@@ -1,0 +1,158 @@
+name: Deploy Pipeline - POC Antigravity
+# Estrutura espelhando Spinnaker Pipeline Stages:
+#   bake -> deploy-dev -> deploy-uat -> judgment-prd -> deploy-prd
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag da imagem (ex: v1.0.0)'
+        required: true
+        default: 'v0.1.0'
+
+env:
+  IMAGE_NAME: oauth-service
+
+permissions:
+  contents: read
+  id-token: write  # Obrigatorio para Workload Identity Federation
+
+jobs:
+
+  # =========================================================
+  # STAGE 1 - BAKE (build + push Artifact Registry)
+  # =========================================================
+  bake:
+    name: "[Bake] Build & Push Image"
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tag }}
+      image_uri: ${{ steps.meta.outputs.uri }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: meta
+        run: |
+          TAG="${GITHUB_REF_NAME}-${GITHUB_SHA::7}"
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            TAG="${{ github.event.inputs.tag }}"
+          fi
+          URI="${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.ARTIFACT_REPO }}/${{ env.IMAGE_NAME }}:${TAG}"
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "uri=${URI}" >> $GITHUB_OUTPUT
+          echo "Image URI: ${URI}"
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Cloud Build submit
+        run: |
+          gcloud builds submit             --tag="${{ steps.meta.outputs.uri }}"             --project="${{ vars.GCP_PROJECT_ID }}"             .
+
+  # =========================================================
+  # STAGE 2 - DEPLOY DEV (automatico)
+  # =========================================================
+  deploy-dev:
+    name: "[Deploy] DEV"
+    needs: bake
+    runs-on: ubuntu-latest
+    environment:
+      name: dev
+      url: ${{ steps.deploy.outputs.url }}
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - id: deploy
+        name: Deploy Cloud Run (dev)
+        run: |
+          gcloud run deploy poc-oauth-dev             --image="${{ needs.bake.outputs.image_uri }}"             --region="${{ vars.GCP_REGION }}"             --platform=managed             --allow-unauthenticated             --set-env-vars="ENV=dev,VERSION=${{ needs.bake.outputs.image_tag }}"             --memory=256Mi --cpu=1             --min-instances=0 --max-instances=3             --port=8080
+
+          URL=$(gcloud run services describe poc-oauth-dev --region="${{ vars.GCP_REGION }}" --format='value(status.url)')
+          echo "url=${URL}" >> $GITHUB_OUTPUT
+          echo "::notice title=DEV deployed::${URL}"
+
+      - name: Smoke test DEV
+        run: |
+          sleep 5
+          curl -fsS "${{ steps.deploy.outputs.url }}/health" | tee /dev/stderr | grep -q '"env":"dev"'
+
+  # =========================================================
+  # STAGE 3 - DEPLOY UAT (automatico apos DEV)
+  # =========================================================
+  deploy-uat:
+    name: "[Deploy] UAT"
+    needs: [bake, deploy-dev]
+    runs-on: ubuntu-latest
+    environment:
+      name: uat
+      url: ${{ steps.deploy.outputs.url }}
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - id: deploy
+        name: Deploy Cloud Run (uat)
+        run: |
+          gcloud run deploy poc-oauth-uat             --image="${{ needs.bake.outputs.image_uri }}"             --region="${{ vars.GCP_REGION }}"             --platform=managed             --allow-unauthenticated             --set-env-vars="ENV=uat,VERSION=${{ needs.bake.outputs.image_tag }}"             --memory=256Mi --cpu=1             --min-instances=0 --max-instances=3             --port=8080
+
+          URL=$(gcloud run services describe poc-oauth-uat --region="${{ vars.GCP_REGION }}" --format='value(status.url)')
+          echo "url=${URL}" >> $GITHUB_OUTPUT
+          echo "::notice title=UAT deployed::${URL}"
+
+      - name: Smoke test UAT
+        run: |
+          sleep 5
+          curl -fsS "${{ steps.deploy.outputs.url }}/health" | tee /dev/stderr | grep -q '"env":"uat"'
+
+  # =========================================================
+  # STAGE 4 - DEPLOY PRD (Manual Judgment gate via Environment)
+  # =========================================================
+  deploy-prd:
+    name: "[Deploy] PRD (Judgment gate + GMUD)"
+    needs: [bake, deploy-uat]
+    runs-on: ubuntu-latest
+    environment:
+      name: prd
+      url: ${{ steps.deploy.outputs.url }}
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - id: deploy
+        name: Deploy Cloud Run (prd)
+        run: |
+          gcloud run deploy poc-oauth-prd             --image="${{ needs.bake.outputs.image_uri }}"             --region="${{ vars.GCP_REGION }}"             --platform=managed             --allow-unauthenticated             --set-env-vars="ENV=prd,VERSION=${{ needs.bake.outputs.image_tag }}"             --memory=512Mi --cpu=1             --min-instances=0 --max-instances=10             --port=8080
+
+          URL=$(gcloud run services describe poc-oauth-prd --region="${{ vars.GCP_REGION }}" --format='value(status.url)')
+          echo "url=${URL}" >> $GITHUB_OUTPUT
+          echo "::notice title=PRD deployed::${URL}"
+
+      - name: Smoke test PRD
+        run: |
+          sleep 5
+          curl -fsS "${{ steps.deploy.outputs.url }}/health" | tee /dev/stderr | grep -q '"env":"prd"'
+
+      - name: Notify Grafana - release done
+        run: |
+          curl -s -X POST "${{ secrets.GRAFANA_LOKI_URL }}/loki/api/v1/push"             -u "${{ secrets.GRAFANA_USER }}:${{ secrets.GRAFANA_TOKEN }}"             -H "Content-Type: application/json"             -d "{"streams":[{"stream":{"service":"poc-antigravity","agent":"release-agent","level":"INFO"},"values":[["$(date +%s%N)","{\"event\":\"released_to_prd\",\"tag\":\"${{ needs.bake.outputs.image_tag }}\",\"url\":\"${{ steps.deploy.outputs.url }}\"}"]]}]}"
