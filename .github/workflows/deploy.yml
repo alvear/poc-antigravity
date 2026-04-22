@@ -1,6 +1,7 @@
 name: Deploy Pipeline - POC Antigravity
-# Estrutura espelhando Spinnaker Pipeline Stages:
-#   bake -> deploy-dev -> deploy-uat -> judgment-prd -> deploy-prd
+# Pipeline CI/CD com GitHub Actions
+# Estagios: bake -> deploy-dev -> deploy-uat -> judgment-prd -> deploy-prd
+# Gate do prd: Deployment Protection Rule + aprovacao via gmud-bridge (event-driven JSM -> GitHub API)
 
 on:
   push:
