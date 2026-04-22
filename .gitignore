@@ -205,3 +205,35 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# ===== POC Antigravity specifics =====
+# Secrets e credenciais
+*.key
+*.pem
+service-account*.json
+credentials.json
+_tmp_*
+
+# Estado local dos agentes
+.gate_sessions.json
+.antigravity/
+
+# Scripts one-shot de desenvolvimento (patches, diags, pulls, pushes)
+# Mantidos fora do repo para nao poluir historico
+/patch_*.py
+/diag_*.py
+/pull_*.py
+/push_*.py
+/check_*.py
+/create_readme.py
+/publish_release_notes.py
+/rewrite_tests.py
+/cancel_deploy.py
+/fix_sonar.py
+/show_*.py
+/commit_deploy_workflow.py
+/list_repo_files.py
+/bootstrap_cloudrun.py
+
+# Artefatos de teste legados
+test_raiz.txt
