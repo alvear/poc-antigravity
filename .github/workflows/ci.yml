@@ -8,6 +8,49 @@ on:
 
 jobs:
 
+  unit-tests:
+    name: Unit Tests (pytest + coverage)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install pytest pytest-cov pytest-mock httpx
+      - name: Run pytest with coverage
+        run: |
+          PYTHONPATH=. pytest tests/ \
+            --junitxml=junit.xml \
+            --cov=src \
+            --cov-report=xml:coverage.xml \
+            --cov-report=term \
+            -v
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            junit.xml
+            coverage.xml
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Unit Tests Summary" >> $GITHUB_STEP_SUMMARY
+          if [ -f junit.xml ]; then
+            tests=$(grep -oP 'tests="[0-9]+"' junit.xml | head -1 | grep -oP '[0-9]+' || echo "?")
+            failures=$(grep -oP 'failures="[0-9]+"' junit.xml | head -1 | grep -oP '[0-9]+' || echo "?")
+            errors=$(grep -oP 'errors="[0-9]+"' junit.xml | head -1 | grep -oP '[0-9]+' || echo "?")
+            echo "- Total tests: $tests" >> $GITHUB_STEP_SUMMARY
+            echo "- Failures: $failures" >> $GITHUB_STEP_SUMMARY
+            echo "- Errors: $errors" >> $GITHUB_STEP_SUMMARY
+          fi
+
   security-scan:
     name: Security Scan (Bandit + Safety)
     runs-on: ubuntu-latest
