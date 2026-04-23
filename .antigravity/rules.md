@@ -1,3 +1,18 @@
+## Referencia obrigatoria - agent_guidelines.md
+
+Antes de qualquer geracao de codigo para aplicacoes novas, todo agente le:
+
+`.antigravity/agent_guidelines.md` (este arquivo eh `.antigravity/rules.md`)
+
+agent_guidelines.md contem padroes arquiteturais que os agentes aplicam ao codigo
+gerado. rules.md contem regras operacionais por agente. Os dois sao complementares.
+
+Em caso de conflito entre rules.md e agent_guidelines.md, agent_guidelines.md
+prevalece para decisoes sobre o codigo gerado, e rules.md prevalece para decisoes
+sobre comportamento operacional do agente.
+
+---
+
 # Regras Globais da Esteira Antigravity
 
 ## Proposito deste arquivo
