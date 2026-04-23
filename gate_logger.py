@@ -28,7 +28,7 @@ def _save_sessions(sessions):
 
 def start_proposal(agent, proposal_type, summary):
     """Inicia sessao de proposta. Retorna session_id unico."""
-    session_id = f"{agent}-{proposal_type.lower()}-{int(time.time())}"
+    session_id = f"{agent}-{proposal_type.lower()}-{time.time_ns()}"
     sessions = _load_sessions()
     sessions.append({
         "session_id": session_id,
