@@ -21,15 +21,18 @@ import confluence_helper
 import github_helper
 import jsm_helper
 from agents.base import BaseAgent
+from agents.exceptions import (
+    AntigravityError,
+    ConfluenceError,
+    HelperError,
+    JSMError,
+    ReleaseStageFailure,
+)
 from config import settings
 
 POLL_SEC = 10
 MAX_WAIT_STAGE_MIN = 15
 MAX_WAIT_PRD_MIN = 120  # ate 2h pra Normal Change (tempo para CAB aprovar)
-
-
-class ReleaseStageFailure(RuntimeError):
-    """Pipeline stage (Bake, DEV, UAT, PRD) falhou ou deu timeout."""
 
 
 class ReleaseAgent(BaseAgent):
@@ -129,8 +132,11 @@ class ReleaseAgent(BaseAgent):
                 parent_title="POC-Antigravity",
             )
             print(f"[CONFLUENCE] Release Notes {release_tag} publicadas")
-        except Exception as e:
-            self.log_error(f"Falha ao publicar Release Notes: {e}")
+        except ConfluenceError as e:
+            self.log_error(
+                f"Falha ao publicar Release Notes: {e}",
+                {"status_code": e.status_code, "context": e.context},
+            )
             print(f"[CONFLUENCE] AVISO: falha ao publicar: {e}")
 
     # -----------------------------------------------------------
@@ -162,7 +168,7 @@ class ReleaseAgent(BaseAgent):
             self.log_info("Etapa 2/6: localizando run do deploy.yml")
             run = self._find_run_for_tag(release_tag, timeout_min=3)
             if not run:
-                raise ReleaseStageFailure("run do deploy.yml nao encontrado")
+                raise ReleaseStageFailure("release-agent", "run do deploy.yml nao encontrado")
             run_id = run["id"]
             run_url = run["html_url"]
             print(f"[PIPELINE] Run ID: {run_id}\n[PIPELINE] URL: {run_url}")
@@ -172,7 +178,7 @@ class ReleaseAgent(BaseAgent):
             for stage in ["Bake", "DEV", "UAT"]:
                 ok = self._wait_stage(run_id, stage)
                 if not ok:
-                    raise ReleaseStageFailure(f"stage {stage} falhou")
+                    raise ReleaseStageFailure("release-agent", f"stage {stage} falhou")
                 print(f"[PIPELINE] {stage} OK")
 
             # ---- ETAPA 4 - Cria GMUD ----
@@ -217,8 +223,11 @@ class ReleaseAgent(BaseAgent):
                         gmud_key,
                         "Standard Change auto-aprovado. Deploy em PRD sera liberado pelo bridge.",
                     )
-                except Exception as e:
-                    self.log_error(f"auto-transition Standard falhou: {e}")
+                except JSMError as e:
+                    self.log_error(
+                        f"auto-transition Standard falhou: {e}",
+                        {"status_code": e.status_code, "context": e.context},
+                    )
                     jsm_helper.add_comment(
                         gmud_key,
                         f"AVISO: auto-transition falhou ({e}). Transicione manualmente para IMPLEMENTING.",
@@ -235,8 +244,11 @@ class ReleaseAgent(BaseAgent):
                         gmud_key,
                         "Normal Change preparado pelo Release Agent. Aguardando aprovacao do CAB em REVISAR -> IMPLEMENTING.",
                     )
-                except Exception as e:
-                    self.log_error(f"auto-transition Normal falhou: {e}")
+                except JSMError as e:
+                    self.log_error(
+                        f"auto-transition Normal falhou: {e}",
+                        {"status_code": e.status_code, "context": e.context},
+                    )
                     jsm_helper.add_comment(
                         gmud_key,
                         f"AVISO: auto-transition falhou ({e}). Transicione manualmente.",
@@ -267,8 +279,11 @@ class ReleaseAgent(BaseAgent):
                 try:
                     jsm_helper.mark_done(gmud_key)
                     final_status = "Concluida"
-                except Exception as e:
-                    self.log_error(f"falha ao marcar GMUD concluida: {e}")
+                except JSMError as e:
+                    self.log_error(
+                        f"falha ao marcar GMUD concluida: {e}",
+                        {"status_code": e.status_code, "context": e.context},
+                    )
                     final_status = "Implementing"
                 jsm_helper.add_comment(
                     gmud_key,
@@ -306,7 +321,7 @@ class ReleaseAgent(BaseAgent):
 
             # Se PRD nao OK, propaga excecao para marcar rejected no gate.
             if not prd_ok:
-                raise ReleaseStageFailure("PRD nao concluiu com sucesso")
+                raise ReleaseStageFailure("release-agent", "PRD nao concluiu com sucesso")
 
             return {
                 "release_tag": release_tag,
@@ -327,6 +342,11 @@ if __name__ == "__main__":
     risk = sys.argv[5] if len(sys.argv) > 5 else "LOW"
     try:
         ReleaseAgent().run(tag, summary, story, envs, risk)
-    except Exception as exc:
+    except AntigravityError as exc:
+        # Erros conhecidos da esteira - log estruturado foi feito na origem
         print(f"[RELEASE] falhou: {exc}")
+        sys.exit(1)
+    except Exception as exc:
+        # Erros inesperados - continua propagando, mas sai com codigo 1
+        print(f"[RELEASE] erro inesperado: {exc}")
         sys.exit(1)
