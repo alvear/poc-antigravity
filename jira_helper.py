@@ -8,6 +8,7 @@ import requests
 from requests.auth import HTTPBasicAuth
 
 import grafana_logger as log
+from agents.exceptions import JiraError
 from config import settings
 
 JIRA_URL = settings.jira_url
@@ -42,7 +43,12 @@ def create_issue(summary, description, issue_type, parent_key=None):
         body["fields"]["parent"] = {"key": parent_key}
 
     r = requests.post(f"{base}/issue", auth=auth, headers=headers, json=body)
-    r.raise_for_status()
+    if not r.ok:
+        raise JiraError(
+            f"Failed to create {issue_type} '{summary}': {r.text[:200]}",
+            status_code=r.status_code,
+            context={"endpoint": "/issue", "project": PROJECT, "issue_type": issue_type, "parent": parent_key},
+        )
     key = r.json()["key"]
     log.info("pm-agent", f"Issue criada: {key}", {"type": issue_type})
     print(f"[JIRA] {key}: {summary}")
@@ -59,7 +65,12 @@ def list_issues():
         params={"jql": jql, "maxResults": 50,
                 "fields": "summary,issuetype,status"},
     )
-    r.raise_for_status()
+    if not r.ok:
+        raise JiraError(
+            f"Failed to list issues: {r.text[:200]}",
+            status_code=r.status_code,
+            context={"endpoint": "/search", "jql": jql},
+        )
     issues = r.json()["issues"]
     log.info("pm-agent", f"{len(issues)} issues encontradas")
     summary_list = [
