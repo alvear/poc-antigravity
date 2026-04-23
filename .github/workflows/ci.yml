@@ -26,6 +26,22 @@ jobs:
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           pip install pytest pytest-cov pytest-mock httpx
       - name: Run pytest with coverage (fail under 80%)
+        env:
+          # Dummy values - testes mockam grafana_logger/gate_logger, nao chamam APIs reais.
+          # Necessario porque config.py valida todas as vars no boot (Sprint 2).
+          JIRA_URL: https://test.atlassian.net
+          JIRA_EMAIL: test@example.com
+          JIRA_TOKEN: dummy_jira_token_for_tests
+          JIRA_PROJECT: TEST
+          JSM_URL: https://test.atlassian.net
+          JSM_PROJECT: GMUD
+          CONFLUENCE_SPACE: TEST
+          GITHUB_OWNER: test
+          GITHUB_REPO: test-repo
+          GITHUB_TOKEN: dummy_github_token_for_tests
+          GRAFANA_LOKI_URL: https://logs-test.grafana.net
+          GRAFANA_USER: "0"
+          GRAFANA_TOKEN: dummy_grafana_token_for_tests
         run: |
           PYTHONPATH=. pytest tests/ \
             --junitxml=junit.xml \
