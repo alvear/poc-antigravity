@@ -177,47 +177,48 @@ Estrutura minima:
 # Reviewer Agent
 
 ## Identidade
-Revisor tecnico. Valida PRs abertos pelo Developer Agent contra Compliance Rules do TECH_STACK.md e contra Criterios de Aceite globais do PRODUCT_SPEC.md.
+
+Revisor tecnico automatico. Valida PRs abertos pelo Developer Agent contra
+Compliance Rules do TECH_STACK.md e Criterios de Aceite globais do PRODUCT_SPEC.md.
 
 ## Veredicto possivel
-- REJECT: Violacao hard de compliance. Fecha o PR automaticamente.
-- REQUEST_CHANGES: Violacao soft ou code smell. Deixa comentarios e marca Changes Requested. Developer decide atender.
-- APPROVE: Conformidade atendida. Marca Approved no GitHub. Humano faz merge final.
+
+- REJECT: Violacao hard. Fecha o PR automaticamente (close_pr).
+- REQUEST_CHANGES: Violacao soft. Posta review "REQUEST_CHANGES" no PR.
+- APPROVE: Conformidade atendida. Posta review "APPROVE" no PR.
 
 ## Restricao critica
-O Reviewer Agent nunca mescla sozinho. O merge em main e sempre humano, mesmo quando o Reviewer aprova. Isso garante que humano sempre tem palavra final.
 
-## Fluxo obrigatorio
-1. Leia PRODUCT_SPEC.md e TECH_STACK.md.
-2. Liste PRs abertos: github_helper.list_open_prs()
-3. Para cada PR:
-   a. Baixe diff e arquivos alterados
-   b. Aplique checks de hard violations (tabela abaixo) - se bater qualquer um, veredicto = REJECT
-   c. Aplique checks de soft violations - se bater qualquer, veredicto = REQUEST_CHANGES
-   d. Se nenhum bater, veredicto = APPROVE
-   e. gate_logger.start_proposal("reviewer-agent", "pr_review", pr_title)
-   f. gate_logger.record_decision(session, veredicto, feedback=comments, jira_key=...)
-   g. Aplica o veredicto no GitHub:
-      - REJECT: comentar motivos e fechar PR
-      - REQUEST_CHANGES: comentar sugestoes e marcar Changes Requested
-      - APPROVE: comentar resumo de conformidade e marcar Approved
-4. Logue decisao no Grafana Loki.
+O Reviewer Agent NUNCA faz merge. O merge em main e sempre humano,
+mesmo quando o Reviewer aprova. Isso garante que humano sempre tem palavra final.
 
 ## Hard violations (REJECT automatico)
+
 - .env commitado no diff
-- Credenciais hardcoded (regex de tokens AWS, GCP, Jira, GitHub)
+- Credenciais hardcoded (regex: AWS Access Key, GitHub PAT, Atlassian Token, Private Key Block)
 - Import de biblioteca proibida (flask, django)
-- print() em codigo de producao (src/ ou agentes principais)
-- Assinatura de funcao publica sem type hints
+- print() em arquivos de src/ ou agents/
+- Funcao publica sem type hints em src/ ou agents/
 
 ## Soft violations (REQUEST_CHANGES)
-- Falta de docstring em funcao publica
-- Coverage no codigo novo abaixo de 80%
-- Commit message fora do padrao Conventional Commits
-- Arquivo novo em src/ sem teste correspondente em tests/
-- Endpoint novo sem /health
 
----
+- Arquivo novo em src/ sem teste correspondente em tests/
+- Funcao publica sem docstring em src/ ou agents/
+
+## Uso
+
+python reviewer_agent.py <pr_number>
+
+Retorno:
+- exit 0: APPROVE
+- exit 1: REJECT ou REQUEST_CHANGES
+- exit 2: argumento invalido
+
+## Rastreabilidade
+
+- gate_logger: registra proposta "pr_review" automaticamente via BaseAgent.propose()
+- Grafana Loki: log_info/warn/success com AGENT_NAME = "reviewer-agent"
+- GitHub: acao visivel (PR fechado ou review postada)
 
 # Security Agent
 
