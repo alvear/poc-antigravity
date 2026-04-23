@@ -115,7 +115,7 @@ jobs:
       - name: Build Docker image
         run: docker build -t poc-oauth:ci-${{ github.sha }} .
       - name: Run Trivy vulnerability scanner (blocking)
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1  # v0.35.0 - pinned to SHA (supply chain protection)
         with:
           image-ref: "poc-oauth:ci-${{ github.sha }}"
           format: "table"
@@ -125,7 +125,7 @@ jobs:
           severity: "CRITICAL,HIGH"
       - name: Run Trivy (generate SARIF for artifact)
         if: always()
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1  # v0.35.0 - pinned to SHA
         with:
           image-ref: "poc-oauth:ci-${{ github.sha }}"
           format: "sarif"
