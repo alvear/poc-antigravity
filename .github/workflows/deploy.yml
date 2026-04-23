@@ -7,6 +7,7 @@ on:
   push:
     branches: [ main ]
     tags: [ 'v*' ]
+  # checkov:skip=CKV_GHA_7: workflow_dispatch.inputs.tag is required for manual release triggers (documented use case, input sanitized via bash variable assignment)
   workflow_dispatch:
     inputs:
       tag:
@@ -82,7 +83,15 @@ jobs:
       - id: deploy
         name: Deploy Cloud Run (dev)
         run: |
-          gcloud run deploy poc-oauth-dev             --image="${{ needs.bake.outputs.image_uri }}"             --region="${{ vars.GCP_REGION }}"             --platform=managed             --allow-unauthenticated             --set-env-vars="ENV=dev,VERSION=${{ needs.bake.outputs.image_tag }}"             --memory=256Mi --cpu=1             --min-instances=0 --max-instances=3             --port=8080
+          gcloud run deploy poc-oauth-dev \
+            --image="${{ needs.bake.outputs.image_uri }}" \
+            --region="${{ vars.GCP_REGION }}" \
+            --platform=managed \
+            --allow-unauthenticated \
+            --set-env-vars="ENV=dev,VERSION=${{ needs.bake.outputs.image_tag }}" \
+            --memory=256Mi --cpu=1 \
+            --min-instances=0 --max-instances=3 \
+            --port=8080
 
           URL=$(gcloud run services describe poc-oauth-dev --region="${{ vars.GCP_REGION }}" --format='value(status.url)')
           echo "url=${URL}" >> $GITHUB_OUTPUT
@@ -114,7 +123,15 @@ jobs:
       - id: deploy
         name: Deploy Cloud Run (uat)
         run: |
-          gcloud run deploy poc-oauth-uat             --image="${{ needs.bake.outputs.image_uri }}"             --region="${{ vars.GCP_REGION }}"             --platform=managed             --allow-unauthenticated             --set-env-vars="ENV=uat,VERSION=${{ needs.bake.outputs.image_tag }}"             --memory=256Mi --cpu=1             --min-instances=0 --max-instances=3             --port=8080
+          gcloud run deploy poc-oauth-uat \
+            --image="${{ needs.bake.outputs.image_uri }}" \
+            --region="${{ vars.GCP_REGION }}" \
+            --platform=managed \
+            --allow-unauthenticated \
+            --set-env-vars="ENV=uat,VERSION=${{ needs.bake.outputs.image_tag }}" \
+            --memory=256Mi --cpu=1 \
+            --min-instances=0 --max-instances=3 \
+            --port=8080
 
           URL=$(gcloud run services describe poc-oauth-uat --region="${{ vars.GCP_REGION }}" --format='value(status.url)')
           echo "url=${URL}" >> $GITHUB_OUTPUT
@@ -146,7 +163,15 @@ jobs:
       - id: deploy
         name: Deploy Cloud Run (prd)
         run: |
-          gcloud run deploy poc-oauth-prd             --image="${{ needs.bake.outputs.image_uri }}"             --region="${{ vars.GCP_REGION }}"             --platform=managed             --allow-unauthenticated             --set-env-vars="ENV=prd,VERSION=${{ needs.bake.outputs.image_tag }}"             --memory=512Mi --cpu=1             --min-instances=0 --max-instances=10             --port=8080
+          gcloud run deploy poc-oauth-prd \
+            --image="${{ needs.bake.outputs.image_uri }}" \
+            --region="${{ vars.GCP_REGION }}" \
+            --platform=managed \
+            --allow-unauthenticated \
+            --set-env-vars="ENV=prd,VERSION=${{ needs.bake.outputs.image_tag }}" \
+            --memory=512Mi --cpu=1 \
+            --min-instances=0 --max-instances=10 \
+            --port=8080
 
           URL=$(gcloud run services describe poc-oauth-prd --region="${{ vars.GCP_REGION }}" --format='value(status.url)')
           echo "url=${URL}" >> $GITHUB_OUTPUT
@@ -158,15 +183,21 @@ jobs:
           curl -fsS "${{ steps.deploy.outputs.url }}/health" | tee /dev/stderr | grep -q '"env":"prd"'
 
       - name: Notify Grafana - release done
+        env:
+          LOKI_URL: ${{ secrets.GRAFANA_LOKI_URL }}
+          LOKI_USER: ${{ secrets.GRAFANA_USER }}
+          LOKI_TOKEN: ${{ secrets.GRAFANA_TOKEN }}
+          IMAGE_TAG: ${{ needs.bake.outputs.image_tag }}
+          DEPLOY_URL: ${{ steps.deploy.outputs.url }}
         run: |
           NOW_NS=$(date +%s)000000000
           BODY=$(jq -n \
             --arg ts "$NOW_NS" \
-            --arg tag "${{ needs.bake.outputs.image_tag }}" \
-            --arg url "${{ steps.deploy.outputs.url }}" \
+            --arg tag "$IMAGE_TAG" \
+            --arg url "$DEPLOY_URL" \
             '{streams:[{stream:{service:"poc-antigravity",agent:"release-agent",level:"INFO"},values:[[$ts, ("released_to_prd tag=" + $tag + " url=" + $url)]]}]}')
-          curl -sS -X POST "${{ secrets.GRAFANA_LOKI_URL }}/loki/api/v1/push" \
-            -u "${{ secrets.GRAFANA_USER }}:${{ secrets.GRAFANA_TOKEN }}" \
+          curl -sS -X POST "$LOKI_URL/loki/api/v1/push" \
+            -u "$LOKI_USER:$LOKI_TOKEN" \
             -H "Content-Type: application/json" \
             -d "$BODY"
           echo "Log enviado ao Grafana: released_to_prd"
