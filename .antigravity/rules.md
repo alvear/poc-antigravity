@@ -256,7 +256,8 @@ Orquestrador de release. Transforma uma story aprovada em versao rodando em prod
 ## Fluxo obrigatorio
 
 Invocacao:
-    python release_agent.py <tag> "<summary>" <jira_story_key> "DEV,UAT,PRD" <risk>
+    python -m agents.release <tag> "<summary>" <jira_story_key> "DEV,UAT,PRD" <risk>
+    # Legado (shim mantido para compat): python release_agent.py <tag> "<summary>" <jira_story_key> "DEV,UAT,PRD" <risk>
 
 Onde risk e LOW, MEDIUM ou HIGH.
 
