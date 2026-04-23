@@ -1,15 +1,20 @@
-# POC Antigravity - Estado Atual
+# POC Antigravity - Estado Atual (V1 PAUSADA)
 
-> **Documento consolidado para project knowledge.** Substitui historicos anteriores.
-> Ultima atualizacao: 24/04/2026 (apos Bloco C Parte 1).
+> **Status: V1 pausada em 24/04/2026.** Consulte [docs/HANDOFF.md](docs/HANDOFF.md)
+> para detalhes do pivote e planos da V2 (paradigma IDE-centric like Devin).
+> Este documento consolida o estado da V1 para referencia futura.
 
 ---
 
-## Quem somos
+## Quem somos e contexto
 
 **Alvear** - Hyperautomation Coordinator no Banco BV.
-**POC Antigravity** - simula SDLC end-to-end com agentes IA, governanca ITIL, em GCP.
-**Proposito atual:** Piloto real (Proposito C). Sem prazo definido.
+**POC Antigravity V1** - simula SDLC end-to-end com agentes Python autonomos,
+governanca ITIL, em GCP. Rodada como experimento de arquitetura agentica.
+
+**Decisao de 24/04/2026:** V1 pausada em estado demonstravel. Paradigma de
+agentes Python autonomos substituido por V2 (IDE-centric com Gemini embutido
+no Antigravity). Ver `docs/HANDOFF.md` para detalhes do pivote.
 
 ---
 
@@ -25,7 +30,7 @@
 | Observability | Grafana Cloud (logs-prod-024.grafana.net, user 1553357) |
 | Quality | SonarCloud (org alvear, project alvear_poc-antigravity) |
 | Path local | C:\\Users\\spran\\poc-antigravity (Windows PowerShell) |
-| Editor | Antigravity (VS Code-like) |
+| Editor | Antigravity (VS Code-like com Gemini embutido) |
 
 ### Configuracao critica
 
@@ -36,11 +41,11 @@ GITHUB_OWNER/REPO/TOKEN, GRAFANA_LOKI_URL/USER/TOKEN.
 2 vars runtime (Cloud Run, nao no .env): VERSION, WEBHOOK_SECRET.
 
 **Tokens expostos no chat anterior** (GitHub, Jira, Grafana). Usuario RECUSOU rotacao.
-Documentado em docs/SECRETS.md.
+Documentado em docs/SECRETS.md. **Reaproveitados na V2.**
 
 ---
 
-## Estado dos sprints (24/04/2026)
+## Estado dos sprints (V1 - estado final)
 
 [x] Sprint 1 - Consolidacao (PRODUCT_SPEC, TECH_STACK, rules.md)
 [x] Sprint 2 - Configuracao central (config.py com Settings + SecretStr)
@@ -48,29 +53,53 @@ Documentado em docs/SECRETS.md.
 [x] Sprint 4 - Error handling padronizado (hierarquia exceptions, 11 tipos)
 [x] Sprint 5 - Testes dos proprios agentes (110 testes)
 [x] Bloco C Parte 1 - github_helper estendido para Reviewer (124 testes)
+[x] Bloco C Parte 2 - ReviewerAgent completo (137 testes)
+[x] Bloco H Parte A - 16 padroes classicos em agent_guidelines.md
+[x] Bloco H Parte B - 11 padroes agenticos em agent_guidelines.md
 
-PROXIMOS (em ordem):
-[ ] Bloco C Parte 2 - agents/reviewer.py + shim          (~1h)
-[ ] Bloco D - QA Agent v2 (geracao em 3 tipos)           (~2-3h sessao dedicada)
-[ ] Bloco G - SI Agent 3 camadas                         (~8-11h sessao dedicada)
+### Itens planejados que NAO foram implementados (congelados)
+
+Os itens abaixo estavam no roadmap mas nao chegaram a ser implementados em V1.
+Em V2, parte deles vira persona do Gemini no editor em vez de classe Python.
+
+[ ] PM Agent                                             (~1.5-2h)
+[ ] SecurityRequirementsAgent                            (~2-2.5h)
+[ ] Architect Agent                                      (~3-4h)
+[ ] DesignerAgent (UX+UI unificado, so desenha)          (~3-4h)
+[ ] ThreatModelAgent                                     (~3-4h)
+[ ] Bloco D - QA Agent v2 (geracao em 3 tipos)           (~2-3h)
+[ ] Developer Agent (full-stack FastAPI + Streamlit)     (~5-7h)
+[ ] StaticAnalysisAgent                                  (~3-4h)
+[ ] SignoffAgent                                         (~2-2.5h)
 [ ] Sprint 6 - ADRs documentando decisoes                (~1h)
 [ ] Sprint 7 - CI/CD do codigo dos agentes               (~45min)
 [ ] Bloco F - Release v2.0.0 end-to-end                  (~30min)
 
-### Metricas atuais
+### Bloco H Parte C (removida do plano ainda em V1)
+
+14 padroes stack-dependent (Actor Model, Event-Driven Pub/Sub, MCP, Prompt
+Versioning, Service Mesh mTLS, GitOps ArgoCD, WebAssembly, GPU Orchestration,
+Multi-agent Orchestration, RAG, Hybrid Search, Semantic Caching, Fallback
+Chains, Model Routing) foram removidos do plano em 24/04/2026. Ficam como
+backlog condicional - revisitar quando stack de aplicacao alvo justificar.
+
+### Metricas finais V1
 
 | Metrica | Valor |
 |---|---|
-| Testes totais | 124 |
+| Testes totais | 137 |
 | Coverage src/ | 100% |
-| CI gates verdes | 6/6 (Run #70) |
+| CI gates verdes | 6/6 (Run #73) |
 | Modulos com testes | 12 |
 | Tipos de excecao | 11 |
-| Agentes implementados | 2 (Release, QA) + BaseAgent |
+| Agentes implementados | 3 (Release, QA, Reviewer) + BaseAgent |
+| Padroes documentados (Bloco H) | 27 (Parte A + B) |
+| Tamanho agent_guidelines.md | 90.9KB / 2742 linhas |
+| Ultimo commit relevante | 556a0dc - feat(guidelines): Bloco H Parte B |
 
 ---
 
-## Arquitetura
+## Arquitetura entregue em V1
 
 ### Estrutura de diretorios
 
@@ -78,18 +107,19 @@ poc-antigravity/
   src/                           # Aplicacao FastAPI (cobertura 100%)
     main.py                      # OAuth2 Google
     app/routers/auth.py
-  agents/                        # Agentes (BaseAgent + concretos)
+  agents/                        # Agentes autonomos (BaseAgent + 3 concretos)
     __init__.py
     base.py                      # BaseAgent + propose() context manager
     exceptions.py                # Hierarquia de excecoes (11 tipos)
     release.py                   # ReleaseAgent
-    qa.py                        # QAAgent
+    qa.py                        # QAAgent (monolitico, hardcoded POC-2 OAuth)
     qa_templates.py              # Templates de teste
-  tests/                         # 124 testes total
+    reviewer.py                  # ReviewerAgent (hibrido B+C)
+  tests/                         # 137 testes total
     test_auth.py                 (11)
     test_jira_helper.py          (9)
     test_jsm_helper.py           (9)
-    test_github_helper.py        (24)   <- 14 novos no Bloco C P1
+    test_github_helper.py        (24)
     test_confluence_helper.py    (6)
     test_grafana_logger.py       (8)
     test_archi_helper.py         (4)
@@ -99,6 +129,7 @@ poc-antigravity/
       test_exceptions.py         (23)
       test_release_agent.py      (9)
       test_qa_agent.py           (5)
+      test_reviewer_agent.py     (13)
   jira_helper.py                 # CRUD Jira
   jsm_helper.py                  # GMUD via JSM
   github_helper.py               # 10 funcoes: branches/commits/PRs/tags/reviews
@@ -109,10 +140,15 @@ poc-antigravity/
   config.py                      # Settings central (pydantic-settings)
   release_agent.py               # SHIM -> agents/release.py
   qa_agent.py                    # SHIM -> agents/qa.py
+  reviewer_agent.py              # SHIM -> agents/reviewer.py
   .env.example
-  docs/SECRETS.md
+  docs/
+    SECRETS.md
+    HANDOFF.md                   # (criado no fechamento V1 - ver abaixo)
   _archive/                      # Scripts temporarios + backups + resumos
-  .antigravity/rules.md          # Rules dos 6 agentes
+  .antigravity/
+    rules.md                     # Rules dos agentes (contexto ativo em V2)
+    agent_guidelines.md          # 27 padroes arquiteturais (contexto ativo em V2)
   PRODUCT_SPEC.md
   TECH_STACK.md
   requirements.txt
@@ -123,7 +159,7 @@ poc-antigravity/
 AntigravityError (raiz)
   HelperError (helper, status_code, context)
     JiraError, JSMError, ConfluenceError, GitHubError, GrafanaError, ArchiError
-  AgentError (agent, context)
+  AgentError (agent, message, context=None)
     ValidationError, GateRejected, ReleaseStageFailure
 
 ### BaseAgent pattern (Sprint 3)
@@ -131,178 +167,119 @@ AntigravityError (raiz)
 Todos os agentes herdam de BaseAgent:
 - AGENT_NAME obrigatorio (class attribute)
 - run() abstract method
-- propose(proposal_type, summary) context manager - integra gate_logger automaticamente
+- propose(proposal_type, summary) context manager - integra gate_logger
 - log_info/error/warn/success(message, context=None) - proxies para grafana_logger
 - Hooks: on_start, on_finish, on_error
 
-### github_helper.py - 10 funcoes (apos Bloco C P1)
+---
 
-Branches/commits/PRs (originais):
-  get_branch_sha, create_branch, commit_file, create_pr, create_tag
+## Decisoes arquiteturais consolidadas (V1 inteira)
 
-PRs avancado (Bloco C P1):
-  list_open_prs, get_pr_diff, get_pr_files, close_pr, comment_pr_review
-
-Funcoes que existem inline em agents/release.py mas NAO no github_helper:
-latest_run_for_workflow, get_run, get_pending_deployments, approve_deployment, get_run_jobs
-(refatoracao opcional em Sprint 6/7)
+| Decisao | Valor | Contexto |
+|---|---|---|
+| Coverage | Bloqueante em 80% (--cov-fail-under=80) | Sprint 2 |
+| Trivy | Bloqueante em CRITICAL/HIGH | Sprint 2 |
+| Reviewer Agent | Hibrido B+C (REJECT/REQUEST_CHANGES/APPROVE), nunca mescla sozinho | Bloco C |
+| Risk como parametro | do Release Agent, nao no PRODUCT_SPEC | Sprint 3 |
+| Contexto descentralizado | cada repo alvo tem seu PRODUCT_SPEC + TECH_STACK | Sprint 1 |
+| SHA pinning de actions | trivy-action@57a97c7e... (supply chain) | Bloco C |
+| Tokens expostos | rotacao adiada (decisao pragmatica) | Sprint 1 |
+| Bloco H Parte C | Removida do plano (backlog condicional) | 24/04/2026 |
+| Time de 14 agentes planejado | PM, Architect, Designer unificado, Developer full-stack, security/ subpacote (4 sub) | 24/04/2026 |
+| Modelo de comunicacao entre agentes | Modelo A - via artefatos externos (Jira/GitHub/Confluence) | 24/04/2026 |
+| Stack de UI default | Streamlit (flag architecture: monolith \| backend_separated) | 24/04/2026 |
+| Developer Agent | Full-stack (nao separa back/front - Streamlit e Python) | 24/04/2026 |
+| UX + UI | Unificados em DesignerAgent (so desenha, nao codifica) | 24/04/2026 |
+| Security Agent | Subpacote agents/security/ com 4 sub-agentes especializados | 24/04/2026 |
+| SAST/DAST/SCA na esteira | 5 gates CI atuais sao suficientes para POC (Bandit, Safety, Checkov, Trivy, SonarCloud) | 24/04/2026 |
+| **PARADIGMA (decisao final V1)** | **V1 pausada. V2 adota paradigma IDE-centric com Gemini no Antigravity** | **24/04/2026** |
 
 ---
 
-## Padroes consolidados (CRITICAL para qualquer mudanca)
+## Componentes reusaveis em V2
 
-### 1. Mocks de testes
-
-CORRETO: patch em modulo importado
-  @patch("jira_helper.requests")
-  @patch("jira_helper.log")
-  def test_xxx(mock_requests, mock_log):
-      mock_requests.post.return_value = _mock_response(ok=True, ...)
-
-- @patch("<modulo>.<nome>") so funciona se <nome> esta no namespace de <modulo>
-- log/gate_logger sao SEMPRE de agents.base (nao de release/qa)
-- Helper _mock_response(ok, status_code, json_data, text) ja existe em cada test_*_helper.py
-- time.time() em loops -> usar time.time_ns() para garantir unicidade
-- Mocks de funcoes com loops devem mockar 'time' inteiro com side_effect, nao so time.sleep
-
-### 2. Erros em helpers
-
-CORRETO:
-  if not r.ok:
-      raise XxxError(
-          f"Failed to <op>: {r.text[:200]}",
-          status_code=r.status_code,
-          context={"key": value, "operation": "<funcao>"},
-      )
-
-- ZERO raise_for_status() novo (todos foram migrados no Sprint 4)
-- grafana_logger e EXCECAO: nunca levanta, escreve em stderr (servico de log nao pode quebrar app)
-
-### 3. Decisoes arquiteturais firmes
-
-| Decisao | Valor |
+| Componente | Reuso em V2 |
 |---|---|
-| Coverage | Bloqueante em 80% (--cov-fail-under=80) |
-| Trivy | Bloqueante em CRITICAL/HIGH |
-| Reviewer Agent | Hibrido B+C (REJECT/REQUEST_CHANGES/APPROVE), nunca mescla sozinho |
-| Risk como parametro | do Release Agent, nao no PRODUCT_SPEC |
-| Contexto descentralizado | cada repo tem seu PRODUCT_SPEC + TECH_STACK |
-| SHA pinning de actions | trivy-action@57a97c7e... (supply chain) |
-| Tokens expostos | rotacao adiada (decisao pragmatica do usuario) |
+| .env (13 variaveis + futura Gemini key) | SIM - copia direto |
+| config.py (Settings + SecretStr) | SIM - copia direto |
+| 7 helpers Python (jira, github, confluence, jsm, grafana, archi, gate) | SIM - helpers sao neutros de paradigma |
+| .antigravity/rules.md | SIM - vira coração do paradigma V2 (refinar pra personas) |
+| .antigravity/agent_guidelines.md | SIM - 91KB de contexto estruturado pro Gemini |
+| PRODUCT_SPEC.md + TECH_STACK.md | SIM - contexto pro Gemini do editor |
+| .github/workflows/ci.yml | SIM - governanca de qualidade independe de paradigma |
+| docs/SECRETS.md | SIM - copia direto |
+| Stack GCP (Cloud Run, Artifact Registry) | SIM |
+| Jira projeto POC + Confluence space POCAntigra | SIM - contexto acumulado vale preservar |
+| Todas as keys existentes | SIM - GitHub PAT, Jira token, Grafana, SonarCloud reutilizaveis |
+| Dominio de negocio (POC-2 OAuth, etc) | SIM - backlog reutilizavel |
 
-### 4. Conventional Commits
+### Componentes NAO reutilizaveis em V2
 
-feat(<scope>): ...
-fix(<scope>): ...
-test(<scope>): ...
-docs(<scope>): ...
-chore(<scope>): ...
-
-Scopes usados: github, jira, jsm, confluence, grafana, archi, gate, agents, config, ci, deploy.
-
----
-
-## Bloco D - Design definido (para proxima sessao)
-
-### Conceito central
-
-O QAAgent atual e monolitico e hardcoded para o caso OAuth (POC-2). Tem 1 metodo publico
-que gera um arquivo unico de testes via templates fixos.
-
-**O que muda no Bloco D:** QAAgent aprende 3 modos de geracao distintos, cada um com
-template proprio, para que quando rodar em aplicacoes novas, distribua os testes gerados
-respeitando a piramide 70/20/10 definida no TECH_STACK.md do repositorio alvo.
-
-### Escopo
-
-1. Tres metodos de geracao na classe:
-   - generate_unit(module, feature) - template com @patch/MagicMock, funcoes puras, happy+error paths
-   - generate_integration(endpoint, feature) - template com TestClient/httpx.AsyncClient, fixtures, sem mock de rede
-   - generate_e2e(user_story, feature) - template com @pytest.mark.e2e + Gherkin simplificado
-
-2. run() recebe lista de cenarios e decide distribuicao entre os 3 tipos.
-
-3. Gera 3 arquivos separados em tests/unit/, tests/integration/, tests/e2e/.
-
-4. TECH_STACK.md do repositorio alvo declara a proporcao alvo (70/20/10 e default,
-   mas configuravel por projeto).
-
-### Esforco estimado
-
-~2-3h em sessao dedicada. Praticamente refeitura do QAAgent - e a maior mudanca
-arquitetural do pacote agents/ desde o BaseAgent no Sprint 3.
-
-### Pre-requisitos
-
-- Decidir formato de declaracao da piramide no TECH_STACK.md
-- Definir se generate_e2e usa pytest-bdd ou scenarios em string simples
-- Decidir se generate_integration usa testcontainers ou fixtures padrao
-
-### Relacao com Bloco H (PRINCIPLES)
-
-Bloco H define principios que os agentes aplicam no codigo gerado. Piramide de Testes e
-um desses principios (Parte A). Idealmente, Bloco H acontece ANTES do Bloco D, porque
-o Bloco H define COMO se caracteriza cada tipo de teste, e o Bloco D implementa a geracao
-seguindo essas caracterizacoes.
-
-### Lessons learned da tentativa de implementacao (24/04/2026)
-
-Durante esta sessao tentamos implementar o Bloco D Parte 1 como "piramide como metrica de
-auditoria" - QAAgent ganhava metodos classify_test_type + validate_pyramid que escaneavam
-testes existentes. Isso foi revertido porque:
-
-- Nao agrega valor a POC (testar a propria POC com piramide e irrelevante)
-- Desvia do conceito central: principios devem ser aplicados pelos agentes quando eles
-  GERAM codigo para aplicacoes novas, nao quando validam a POC propria
-- A confusao foi de interpretacao - "piramide configuravel" pode significar auditoria
-  ou geracao guiada, e a interpretacao correta e geracao
-
-Esta licao motivou a separacao conceitual acima (pre-requisitos claros antes de implementar).
+| Componente | Destino |
+|---|---|
+| agents/base.py, release.py, qa.py, reviewer.py | CONGELADO em V1 - paradigma diferente |
+| agents/exceptions.py | IDEM |
+| Shims release_agent.py, qa_agent.py, reviewer_agent.py | IDEM |
+| tests/agents/* | IDEM |
+| Padroes de codigo Python autonomo (BaseAgent + heranca) | Abandonados em V2 |
 
 ---
 
-## Como retomar - PROXIMO PASSO
+## Lessons learned da V1 (para V2 nao repetir)
 
-### Bloco C Parte 2 - Reviewer Agent (~1h)
+**1. Paradigma precisa ser explicito desde o Sprint 1**  
+V1 comecou como "like Devin no Antigravity" (paradigma IDE-centric) mas evoluiu
+silenciosamente pra "agentes Python autonomos" sem decisao consciente. Resultado:
+tensao entre rules.md (formato persona) e agents/*.py (formato autonomo) apareceu
+so quando chegamos ao PM Agent (que precisava de LLM proprio). Licao: **registrar
+paradigma em ADR #1 de V2**.
 
-Design ja decidido:
-- Hibrido B+C: REJECT / REQUEST_CHANGES / APPROVE
-- Nunca mescla sozinho - humano sempre faz merge final
-- Disparo manual: python reviewer_agent.py [pr_number]
+**2. Bloco H (agent_guidelines.md) foi trabalho solido independente de paradigma**  
+27 padroes documentados em 91KB ficam uteis em V2 como contexto-mestre pro Gemini.
+Investimento nao se perde.
 
-Hard violations (REJECT automatico):
-- .env commitado no diff
-- Credenciais hardcoded (regex tokens AWS/GCP/Jira/GitHub)
-- Import de biblioteca proibida (flask, django)
-- print() em codigo de producao (src/ ou agentes principais)
-- Assinatura de funcao publica sem type hints
+**3. Reviewer/Release/QA Agents sao uteis como AUTOMACAO, nao como AGENTES**  
+Essas 3 classes sao determinísticas - nao precisam de LLM. Funcionam bem como
+gates de CI ou scripts pontuais. Em V2, podem ser reusadas como "tools" chamadas
+pelo Gemini do editor (embora fora do escopo inicial).
 
-Soft violations (REQUEST_CHANGES):
-- Falta de docstring em funcao publica
-- Coverage no codigo novo abaixo de 80%
-- Commit message fora do padrao Conventional Commits
-- Arquivo novo em src/ sem teste correspondente em tests/
-- Endpoint novo sem /health
+**4. Erro de escopo no Bloco D original (pyramid como auditoria da POC)**  
+Revertido em tempo. Reforcou a diretriz: agentes geram apps NOVAS, nao auditam
+a propria POC. Vale em V2 tambem.
 
-Etapas previstas:
-1. Criar agents/reviewer.py com ReviewerAgent(BaseAgent) (~40min)
-2. Shim reviewer_agent.py na raiz (~5min)
-3. Testes em tests/agents/test_reviewer_agent.py ~10 testes (~20min)
-4. Atualizar .antigravity/rules.md com secao do Reviewer (~5min)
-5. Pytest local + push + CI verde (~10min)
-
-### Como abrir a proxima conversa
-
-"Continuando POC Antigravity. Acabei de fechar Bloco C Parte 1.
-Proximo passo: Bloco C Parte 2 - criar agents/reviewer.py."
-
-Eu vou ler este documento + arquivos relevantes via search e estarei operacional em 1-2 turnos.
+**5. 5 gates de CI atuais (Bandit/Safety/Checkov/Trivy/SonarCloud) cobrem SAST/SCA/IaC/Container**  
+Equivalente funcional de Veracode/Prisma/SourceClear sem custo. Reusavel em V2
+se V2 tambem deploya codigo.
 
 ---
 
-## Arquivos do _archive (referencia, nao precisa anexar)
+## Como abrir V2
+
+Sessao nova, em repositorio novo (github.com/alvear/poc-antigravity-v2).
+
+Primeiros passos previstos:
+1. Criar repo novo no GitHub
+2. Copiar arquivos essenciais da V1 (config.py, helpers, rules, guidelines, CI)
+3. Criar ADR #1 registrando paradigma "IDE-centric with Gemini embedded"
+4. Refinar rules.md pra ser prompt-friendly pra Gemini (secoes por persona)
+5. Primeiro teste: operar PM Agent via conversa no editor, validando que
+   rules.md + agent_guidelines.md + helpers Python sao suficientes
+
+Criterios para retomar V1 (caso faca sentido no futuro):
+- Cliente exigir agentes executando SEM editor aberto (CI, cron, triggers)
+- Esteira precisar ser compartilhada por time grande sem dependencia de IDE
+- Auditoria/compliance exigir trail formal e rastreavel em codigo versionado
+
+Se nenhum destes aparecer, V1 permanece congelada. V2 e o caminho principal.
+
+---
+
+## Arquivos de referencia (nao precisa anexar em conversas futuras)
 
 - _archive/SESSAO_23_ABR_2026.md (sessao Sprints 1-5)
-- _archive/SESSAO_24_ABR_2026.md (sessao Bloco C Parte 1)
+- _archive/SESSAO_24_ABR_2026.md (sessao Bloco C)
+- _archive/SESSAO_24_ABR_2026_parte2.md (sessao Bloco H + pivote V1->V2)  
 - _archive/backup_pre_sprint{2,3,5}/ (backups por sprint)
 - _archive/backup_pre_blocoC/ (backup antes do Bloco C)
+- _archive/backup_pre_blocoH/ (backup antes do Bloco H)
+- _archive/POC_ESTADO_ATUAL_pre_v1_pause.md (versao anterior deste documento)
