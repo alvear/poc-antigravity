@@ -125,3 +125,134 @@ def create_tag(tag_name, sha, message):
     log.info("release-agent", f"Tag criada: {tag_name}", {"sha": sha[:7]})
     print(f"[GITHUB] tag {tag_name} criada apontando para {sha[:7]}")
     return tag_name
+
+
+# ============================================================
+# PULL REQUESTS (usado pelo Reviewer Agent)
+# ============================================================
+
+def list_open_prs():
+    """Lista PRs abertos. Retorna [{number, title, user, head_ref, base_ref, html_url}]."""
+    r = requests.get(
+        f"{BASE_URL}/pulls",
+        headers=headers,
+        params={"state": "open", "per_page": 50},
+    )
+    if not r.ok:
+        raise GitHubError(
+            f"Failed to list open PRs: {r.text[:200]}",
+            status_code=r.status_code,
+            context={"operation": "list_open_prs"},
+        )
+    prs = r.json()
+    return [
+        {
+            "number": pr["number"],
+            "title": pr["title"],
+            "user": pr["user"]["login"],
+            "head_ref": pr["head"]["ref"],
+            "base_ref": pr["base"]["ref"],
+            "html_url": pr["html_url"],
+        }
+        for pr in prs
+    ]
+
+
+def get_pr_diff(pr_number):
+    """Retorna o diff bruto do PR (formato unified diff)."""
+    diff_headers = dict(headers)
+    diff_headers["Accept"] = "application/vnd.github.v3.diff"
+    r = requests.get(
+        f"{BASE_URL}/pulls/{pr_number}",
+        headers=diff_headers,
+    )
+    if not r.ok:
+        raise GitHubError(
+            f"Failed to get diff for PR #{pr_number}: {r.text[:200]}",
+            status_code=r.status_code,
+            context={"pr_number": pr_number, "operation": "get_pr_diff"},
+        )
+    return r.text
+
+
+def get_pr_files(pr_number):
+    """Lista arquivos alterados no PR. Retorna [{filename, status, additions, deletions, patch}]."""
+    r = requests.get(
+        f"{BASE_URL}/pulls/{pr_number}/files",
+        headers=headers,
+        params={"per_page": 100},
+    )
+    if not r.ok:
+        raise GitHubError(
+            f"Failed to get files for PR #{pr_number}: {r.text[:200]}",
+            status_code=r.status_code,
+            context={"pr_number": pr_number, "operation": "get_pr_files"},
+        )
+    files = r.json()
+    return [
+        {
+            "filename": f["filename"],
+            "status": f["status"],
+            "additions": f.get("additions", 0),
+            "deletions": f.get("deletions", 0),
+            "patch": f.get("patch", ""),
+        }
+        for f in files
+    ]
+
+
+def close_pr(pr_number, reason):
+    """Fecha um PR comentando o motivo. Usado pelo Reviewer em REJECT."""
+    comment_payload = {"body": f"**Reviewer Agent - REJECT**\n\n{reason}"}
+    r = requests.post(
+        f"{BASE_URL}/issues/{pr_number}/comments",
+        headers=headers,
+        json=comment_payload,
+    )
+    if not r.ok:
+        raise GitHubError(
+            f"Failed to comment on PR #{pr_number}: {r.text[:200]}",
+            status_code=r.status_code,
+            context={"pr_number": pr_number, "operation": "close_pr.comment"},
+        )
+
+    r = requests.patch(
+        f"{BASE_URL}/pulls/{pr_number}",
+        headers=headers,
+        json={"state": "closed"},
+    )
+    if not r.ok:
+        raise GitHubError(
+            f"Failed to close PR #{pr_number}: {r.text[:200]}",
+            status_code=r.status_code,
+            context={"pr_number": pr_number, "operation": "close_pr.patch"},
+        )
+    log.info("reviewer-agent", f"PR #{pr_number} fechado", {"pr_number": pr_number, "reason": reason[:100]})
+    return True
+
+
+def comment_pr_review(pr_number, event, body):
+    """
+    Cria uma review no PR.
+    event: 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT'
+    """
+    valid_events = ("APPROVE", "REQUEST_CHANGES", "COMMENT")
+    if event not in valid_events:
+        raise GitHubError(
+            f"Invalid review event '{event}'. Must be one of {valid_events}",
+            context={"pr_number": pr_number, "event": event, "operation": "comment_pr_review"},
+        )
+    payload = {"event": event, "body": body}
+    r = requests.post(
+        f"{BASE_URL}/pulls/{pr_number}/reviews",
+        headers=headers,
+        json=payload,
+    )
+    if not r.ok:
+        raise GitHubError(
+            f"Failed to post review on PR #{pr_number}: {r.text[:200]}",
+            status_code=r.status_code,
+            context={"pr_number": pr_number, "event": event, "operation": "comment_pr_review"},
+        )
+    log.info("reviewer-agent", f"Review {event} em PR #{pr_number}", {"pr_number": pr_number, "event": event})
+    return r.json().get("id")
