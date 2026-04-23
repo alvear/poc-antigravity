@@ -9,6 +9,7 @@ import requests
 from requests.auth import HTTPBasicAuth
 
 import grafana_logger as log
+from agents.exceptions import ConfluenceError
 from config import settings
 
 CONFLUENCE_URL = settings.confluence_url
@@ -33,7 +34,12 @@ def _get_space_id():
         f"{_api()}/spaces", auth=auth, headers=headers,
         params={"keys": SPACE_KEY},
     )
-    r.raise_for_status()
+    if not r.ok:
+        raise ConfluenceError(
+            f"Failed to get space_id for '{SPACE_KEY}': {r.text[:200]}",
+            status_code=r.status_code,
+            context={"space": SPACE_KEY, "operation": "get_space_id"},
+        )
     results = r.json().get("results", [])
     if not results:
         raise RuntimeError(f"Space nao encontrado: {SPACE_KEY}")
@@ -47,7 +53,12 @@ def _find_parent_id(parent_title):
         auth=auth, headers=headers,
         params={"title": parent_title, "spaceKey": SPACE_KEY, "expand": "version"},
     )
-    r.raise_for_status()
+    if not r.ok:
+        raise ConfluenceError(
+            f"Failed to find parent '{parent_title}': {r.text[:200]}",
+            status_code=r.status_code,
+            context={"space": SPACE_KEY, "parent_title": parent_title},
+        )
     results = r.json().get("results", [])
     return results[0]["id"] if results else None
 
@@ -71,7 +82,12 @@ def create_page(title, content, parent_title=None):
     if r.status_code == 400 and "already exists" in r.text.lower():
         print(f"[CONFLUENCE] Pagina ja existe: {title}")
         return None
-    r.raise_for_status()
+    if not r.ok:
+        raise ConfluenceError(
+            f"Failed to create page '{title}': {r.text[:200]}",
+            status_code=r.status_code,
+            context={"title": title, "space": SPACE_KEY, "parent": parent_title},
+        )
     page = r.json()
     log.info("architect-agent", f"Pagina criada: {title}",
              {"page_id": page.get("id")})
