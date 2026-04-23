@@ -7,6 +7,7 @@ import json
 import requests
 
 import grafana_logger as log
+from agents.exceptions import GitHubError
 from config import settings
 
 GITHUB_TOKEN = settings.github_token.get_secret_value()
@@ -22,7 +23,12 @@ headers = {
 
 def get_branch_sha(branch="main"):
     r = requests.get(f"{BASE_URL}/git/ref/heads/{branch}", headers=headers)
-    r.raise_for_status()
+    if not r.ok:
+        raise GitHubError(
+            f"Failed to get SHA for branch '{branch}': {r.text[:200]}",
+            status_code=r.status_code,
+            context={"branch": branch, "operation": "get_branch_sha"},
+        )
     return r.json()["object"]["sha"]
 
 
@@ -33,7 +39,12 @@ def create_branch(branch_name, from_branch="main"):
     if r.status_code == 422:
         print(f"[GITHUB] Branch ja existe: {branch_name}")
         return branch_name
-    r.raise_for_status()
+    if not r.ok:
+        raise GitHubError(
+            f"Failed to create branch '{branch_name}': {r.text[:200]}",
+            status_code=r.status_code,
+            context={"branch": branch_name, "from": from_branch},
+        )
     log.info("dev-agent", f"Branch criada: {branch_name}", {"branch": branch_name})
     print(json.dumps({"branch": branch_name, "sha": sha[:7]}))
     return branch_name
@@ -56,7 +67,12 @@ def commit_file(branch, filepath, content, message):
     r = requests.put(
         f"{BASE_URL}/contents/{filepath}", headers=headers, json=payload
     )
-    r.raise_for_status()
+    if not r.ok:
+        raise GitHubError(
+            f"Failed to commit {filepath} to {branch}: {r.text[:200]}",
+            status_code=r.status_code,
+            context={"branch": branch, "filepath": filepath, "operation": "commit_file"},
+        )
     commit_sha = r.json()["commit"]["sha"][:7]
     log.info("dev-agent", f"Commit: {filepath}",
              {"branch": branch, "sha": commit_sha})
@@ -67,7 +83,12 @@ def commit_file(branch, filepath, content, message):
 def create_pr(from_branch, to_branch, title, body):
     payload = {"title": title, "head": from_branch, "base": to_branch, "body": body}
     r = requests.post(f"{BASE_URL}/pulls", headers=headers, json=payload)
-    r.raise_for_status()
+    if not r.ok:
+        raise GitHubError(
+            f"Failed to create PR from {from_branch} to {to_branch}: {r.text[:200]}",
+            status_code=r.status_code,
+            context={"from": from_branch, "to": to_branch, "title": title},
+        )
     pr = r.json()
     log.info("dev-agent", f"PR aberto: #{pr['number']}",
              {"pr_url": pr["html_url"]})
@@ -84,12 +105,22 @@ def create_tag(tag_name, sha, message):
         "type": "commit",
     }
     r = requests.post(f"{BASE_URL}/git/tags", headers=headers, json=tag_obj)
-    r.raise_for_status()
+    if not r.ok:
+        raise GitHubError(
+            f"Failed to create tag object '{tag_name}': {r.text[:200]}",
+            status_code=r.status_code,
+            context={"tag_name": tag_name, "sha": sha[:7]},
+        )
     tag_sha = r.json()["sha"]
 
     ref = {"ref": f"refs/tags/{tag_name}", "sha": tag_sha}
     r = requests.post(f"{BASE_URL}/git/refs", headers=headers, json=ref)
-    r.raise_for_status()
+    if not r.ok:
+        raise GitHubError(
+            f"Failed to create tag ref for '{tag_name}': {r.text[:200]}",
+            status_code=r.status_code,
+            context={"tag_name": tag_name, "tag_sha": tag_sha[:7]},
+        )
 
     log.info("release-agent", f"Tag criada: {tag_name}", {"sha": sha[:7]})
     print(f"[GITHUB] tag {tag_name} criada apontando para {sha[:7]}")
