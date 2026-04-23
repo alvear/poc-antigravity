@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [ main ]
 
+permissions:
+  contents: read
+
 jobs:
 
   unit-tests:
@@ -145,16 +148,26 @@ jobs:
     if: always()
     steps:
       - name: Send log to Grafana Loki
+        env:
+          LOKI_URL: ${{ secrets.GRAFANA_LOKI_URL }}
+          LOKI_USER: ${{ secrets.GRAFANA_USER }}
+          LOKI_TOKEN: ${{ secrets.GRAFANA_TOKEN }}
+          JOB_UNIT: ${{ needs.unit-tests.result }}
+          JOB_SEC: ${{ needs.security-scan.result }}
+          JOB_QUAL: ${{ needs.quality-gate.result }}
+          JOB_IAC: ${{ needs.iac-scan.result }}
+          JOB_TRIVY: ${{ needs.trivy-scan.result }}
+          BRANCH: ${{ github.ref_name }}
         run: |
           STATUS="success"
-          if [ "${{ needs.unit-tests.result }}" != "success" ] || \
-             [ "${{ needs.security-scan.result }}" != "success" ] || \
-             [ "${{ needs.quality-gate.result }}" != "success" ] || \
-             [ "${{ needs.iac-scan.result }}" != "success" ] || \
-             [ "${{ needs.trivy-scan.result }}" != "success" ]; then
+          if [ "$JOB_UNIT" != "success" ] || \
+             [ "$JOB_SEC" != "success" ] || \
+             [ "$JOB_QUAL" != "success" ] || \
+             [ "$JOB_IAC" != "success" ] || \
+             [ "$JOB_TRIVY" != "success" ]; then
             STATUS="failure"
           fi
-          curl -s -X POST "${{ secrets.GRAFANA_LOKI_URL }}/loki/api/v1/push" \
-            -u "${{ secrets.GRAFANA_USER }}:${{ secrets.GRAFANA_TOKEN }}" \
+          curl -s -X POST "$LOKI_URL/loki/api/v1/push" \
+            -u "$LOKI_USER:$LOKI_TOKEN" \
             -H "Content-Type: application/json" \
-            -d "{\"streams\":[{\"stream\":{\"service\":\"poc-antigravity\",\"agent\":\"ci-pipeline\",\"level\":\"INFO\"},\"values\":[[\"$(date +%s%N)\",\"{\\\"status\\\":\\\"$STATUS\\\",\\\"branch\\\":\\\"${{ github.ref_name }}\\\"}\"]]}]}"
+            -d "{\"streams\":[{\"stream\":{\"service\":\"poc-antigravity\",\"agent\":\"ci-pipeline\",\"level\":\"INFO\"},\"values\":[[\"$(date +%s%N)\",\"{\\\"status\\\":\\\"$STATUS\\\",\\\"branch\\\":\\\"$BRANCH\\\"}\"]]}]}"
