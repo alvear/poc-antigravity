@@ -22,6 +22,7 @@ from pathlib import Path
 import confluence_helper
 import github_helper
 from agents.base import BaseAgent
+from agents.exceptions import AntigravityError, ValidationError
 from agents.qa_templates import CONFTEST, LLM_EDGE_CASES, TEST_SCAFFOLD
 
 
@@ -69,7 +70,7 @@ class QAAgent(BaseAgent):
                 {"test_names": [fn.name for fn in test_fns]},
             )
             if collected == 0:
-                raise ValueError("Nenhum teste detectado no arquivo gerado")
+                raise ValidationError("qa-agent", "Nenhum teste detectado no arquivo gerado")
 
             # ---- Etapa 3 - atualiza requirements.txt ----
             self.log_info("Etapa 3/5: atualizando requirements.txt")
@@ -224,6 +225,9 @@ if __name__ == "__main__":
     story = sys.argv[2] if len(sys.argv) > 2 else "POC-2"
     try:
         QAAgent().run(branch=branch, story=story)
-    except Exception as exc:
+    except AntigravityError as exc:
         print(f"[QA] falhou: {exc}")
+        sys.exit(1)
+    except Exception as exc:
+        print(f"[QA] erro inesperado: {exc}")
         sys.exit(1)
