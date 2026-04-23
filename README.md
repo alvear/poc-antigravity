@@ -1,5 +1,24 @@
 # POC Antigravity - SDLC End-to-End com IA
 
+> ### [V1 PAUSADA] desde 24/04/2026
+>
+> **Esta e a V1 da POC, congelada em estado demonstravel.** O paradigma foi
+> ressignificado para V2 (IDE-centric com Gemini embutido no Antigravity,
+> like Devin). Ver [`docs/HANDOFF.md`](docs/HANDOFF.md) para detalhes do pivote.
+>
+> **O que esta em V1 e funciona:** stack GCP completa, 137 testes, 100% coverage,
+> 6/6 gates CI verdes, 3 agentes Python autonomos (Release, QA, Reviewer),
+> 27 padroes arquiteturais documentados (`.antigravity/agent_guidelines.md`),
+> ambos os fluxos ITIL validados em producao.
+>
+> **Tag de marco:** `v1.0.0-paused`
+>
+> Estado consolidado: [`POC_ESTADO_ATUAL.md`](POC_ESTADO_ATUAL.md)
+
+---
+
+## Status original da V1
+
 > **Status:** POC validada end-to-end, ambos os fluxos ITIL demonstrados em producao GCP.
 
 ## Objetivo
