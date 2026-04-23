@@ -5,6 +5,7 @@ Usado por todos os agentes e helpers da esteira para observabilidade.
 Todo log carrega: level, agent, message, service, ts (ISO8601 UTC).
 """
 import json
+import sys
 import time
 from datetime import datetime, timezone
 
@@ -54,7 +55,11 @@ def send_log(level, agent, message, extra=None):
     if r.status_code in (200, 204):
         print(f"[GRAFANA] {level.upper()} | {agent} | {message}")
     else:
-        print(f"[GRAFANA ERROR] {r.status_code}: {r.text}")
+        # Telemetria nao deve quebrar fluxo principal (observability-first).
+        # Mas registra em stderr para visibilidade local/CI.
+        sys.stderr.write(
+            f"[GRAFANA ERROR] Status {r.status_code}: {r.text[:200]}\n"
+        )
 
 
 def info(agent, message, extra=None):
