@@ -13,6 +13,7 @@ import json
 import requests
 
 import grafana_logger as log
+from agents.exceptions import JSMError
 from config import settings
 
 AGENT = "release-agent"
@@ -76,9 +77,11 @@ def create_change(summary, description, release_tag, affected_envs="PRD", risk="
         auth=auth, headers=headers, json=payload
     )
     if r.status_code not in (200, 201):
-        log.error(AGENT, f"Falha ao criar GMUD: HTTP {r.status_code}", {"body": r.text[:500]})
-        print(f"[JSM] HTTP {r.status_code} ao criar GMUD. Body: {r.text[:800]}")
-        r.raise_for_status()
+        raise JSMError(
+            f"Failed to create change: {r.text[:200]}",
+            status_code=r.status_code,
+            context={"endpoint": "/issue", "project": JSM_PROJECT, "summary": summary},
+        )
     key = r.json()["key"]
     url = f"{JIRA_URL}/browse/{key}"
     log.success(AGENT, f"GMUD criada: {key}", {
@@ -95,7 +98,12 @@ def get_status(issue_key):
         f"{JIRA_URL}/rest/api/3/issue/{issue_key}?fields=status",
         auth=auth, headers=headers
     )
-    r.raise_for_status()
+    if not r.ok:
+        raise JSMError(
+            f"Failed to get status for {issue_key}: {r.text[:200]}",
+            status_code=r.status_code,
+            context={"endpoint": f"/issue/{issue_key}", "operation": "get_status"},
+        )
     status = r.json()["fields"]["status"]["name"]
     return _normalize(status)
 
@@ -106,7 +114,12 @@ def get_transitions(issue_key):
         f"{JIRA_URL}/rest/api/3/issue/{issue_key}/transitions",
         auth=auth, headers=headers
     )
-    r.raise_for_status()
+    if not r.ok:
+        raise JSMError(
+            f"Failed to list transitions for {issue_key}: {r.text[:200]}",
+            status_code=r.status_code,
+            context={"endpoint": f"/issue/{issue_key}/transitions"},
+        )
     return [
         {"id": t["id"], "name": t["name"], "to": t["to"]["name"]}
         for t in r.json()["transitions"]
@@ -127,7 +140,12 @@ def transition(issue_key, target_status):
         auth=auth, headers=headers,
         json={"transition": {"id": t_id}}
     )
-    r.raise_for_status()
+    if not r.ok:
+        raise JSMError(
+            f"Failed to transition {issue_key} to {target_status}: {r.text[:200]}",
+            status_code=r.status_code,
+            context={"issue_key": issue_key, "target": target_status, "transition_id": t_id},
+        )
     log.info(AGENT, f"GMUD {issue_key} transicionada para {target_status}")
     return True
 
@@ -203,7 +221,12 @@ def add_comment(issue_key, text):
         f"{JIRA_URL}/rest/api/3/issue/{issue_key}/comment",
         auth=auth, headers=headers, json=payload
     )
-    r.raise_for_status()
+    if not r.ok:
+        raise JSMError(
+            f"Failed to add comment to {issue_key}: {r.text[:200]}",
+            status_code=r.status_code,
+            context={"issue_key": issue_key, "endpoint": "comment"},
+        )
     return True
 
 
